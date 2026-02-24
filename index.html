@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>电池摄像头功耗计算器 - 项目版</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar panel">
+      <div>
+        <p class="eyebrow">Battery Camera Power Model</p>
+        <h1>电池摄像头功耗计算器</h1>
+        <p class="subtle">项目版（研发/FAE） · 平台/无线规则 · 本地保存</p>
+      </div>
+      <div class="topbar-actions">
+        <button id="btnSaveProject" class="btn btn-secondary">保存项目</button>
+        <button id="btnSaveAsProject" class="btn btn-secondary">另存为</button>
+        <button id="btnExportCsv" class="btn btn-primary">导出 CSV</button>
+        <button id="btnPrint" class="btn btn-ghost">打印 / PDF</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="panel sidebar" aria-label="项目参数与功耗配置">
+        <section class="sidebar-section">
+          <div class="section-head">
+            <h2>项目管理</h2>
+            <span class="chip" id="projectCountChip">0 个</span>
+          </div>
+
+          <div class="project-manager">
+            <label class="project-picker-label" for="projectSelect">已保存项目</label>
+            <div class="project-picker-row">
+              <select id="projectSelect" aria-label="选择项目"></select>
+              <button id="btnNewProject" class="btn btn-secondary" type="button">新建</button>
+            </div>
+            <div class="project-action-row">
+              <button id="btnDeleteProject" class="btn btn-ghost" type="button">删除当前项目</button>
+              <span id="saveStatus" class="helper-inline" aria-live="polite"></span>
+            </div>
+          </div>
+        </section>
+
+        <section class="sidebar-section">
+          <div class="section-head">
+            <h2>模式选择</h2>
+            <span class="helper-inline" id="modeLimitHint">平台规则自动限制</span>
+          </div>
+          <div class="mode-grid" id="modeButtons" role="tablist" aria-label="功耗模式">
+            <button class="mode-btn" data-mode="sleep" role="tab" type="button">休眠唤醒</button>
+            <button class="mode-btn" data-mode="aor" role="tab" type="button">AOR 模式</button>
+            <button class="mode-btn" data-mode="always" role="tab" type="button">长电模式</button>
+            <button class="mode-btn" data-mode="smart" role="tab" type="button">智能模式</button>
+          </div>
+        </section>
+
+        <form id="powerForm" class="form-grid" novalidate>
+          <section class="form-section">
+            <h3>项目参数配置</h3>
+            <label>
+              <span>项目名称</span>
+              <input id="projectName" type="text" maxlength="40" placeholder="例如：6920 + Wi-Fi + 5200mAh">
+            </label>
+            <label>
+              <span>电池电量 (mAh)</span>
+              <input id="batteryMah" type="number" min="1" step="1" inputmode="decimal">
+            </label>
+            <label>
+              <span>无线类型</span>
+              <select id="wirelessType">
+                <option value="4g">4G</option>
+                <option value="wifi">Wi-Fi</option>
+              </select>
+            </label>
+            <label>
+              <span>硬件平台</span>
+              <select id="hardwarePlatform">
+                <option value="6920">6920</option>
+                <option value="6921">6921</option>
+                <option value="6941">6941</option>
+                <option value="OV8000">OV8000</option>
+                <option value="other">其他</option>
+              </select>
+            </label>
+          </section>
+
+          <section class="form-section">
+            <h3>基础硬件配置</h3>
+            <label>
+              <span>工作电压 (V)</span>
+              <input id="voltageV" type="number" min="0.1" step="0.1" inputmode="decimal">
+            </label>
+            <label>
+              <span>放电效率 (%)</span>
+              <input id="efficiencyPct" type="number" min="1" max="100" step="1" inputmode="decimal">
+            </label>
+          </section>
+
+          <section class="form-section">
+            <h3>活动功耗配置</h3>
+            <label>
+              <span>Active 功耗 (mW)</span>
+              <input id="activePowerMw" type="number" min="0" step="1" inputmode="decimal">
+            </label>
+            <label>
+              <span>唤醒次数 / 天</span>
+              <input id="wakeCountPerDay" type="number" min="0" step="1" inputmode="decimal">
+            </label>
+            <label>
+              <span>单次录制时长 (秒)</span>
+              <input id="wakeDurationSec" type="number" min="0" step="1" inputmode="decimal">
+            </label>
+          </section>
+
+          <section class="form-section">
+            <h3>待机配置</h3>
+            <label data-field="sleepPowerMw">
+              <span>休眠功耗 (mW)</span>
+              <input id="sleepPowerMw" type="number" min="0" step="0.1" inputmode="decimal" readonly disabled>
+              <small class="field-note">由无线类型自动设定（Wi-Fi=2mW，4G=6mW）</small>
+            </label>
+            <label data-field="aorPowerMw">
+              <span>AOR 功耗 (mW)</span>
+              <input id="aorPowerMw" type="number" min="0" step="0.1" inputmode="decimal">
+            </label>
+            <label data-field="smartThresholdPct">
+              <span>智能切换阈值 (%)</span>
+              <input id="smartThresholdPct" type="range" min="0" max="100" step="1">
+              <output id="smartThresholdPctOut" for="smartThresholdPct">40%</output>
+            </label>
+          </section>
+        </form>
+
+        <section class="sidebar-section">
+          <div class="section-head">
+            <h2>输入校验</h2>
+          </div>
+          <ul id="validationList" class="validation-list" aria-live="polite"></ul>
+        </section>
+      </aside>
+
+      <section class="content">
+        <section class="hero-grid">
+          <div class="panel hero-card hero-primary">
+            <p class="eyebrow">预计续航</p>
+            <div class="hero-number-wrap">
+              <span id="runtimeValue" class="hero-number">0</span>
+              <span id="runtimeUnit" class="hero-unit">天</span>
+            </div>
+            <p class="subtle">理论寿命约 <strong id="runtimeMonths">0</strong> 个月</p>
+            <div class="ring-shell" aria-hidden="true">
+              <div id="lifeRing" class="ring-fill"></div>
+              <span>Life</span>
+            </div>
+          </div>
+
+          <div class="panel stat-card">
+            <p class="eyebrow">平均运行功耗</p>
+            <p class="stat-main"><span id="avgPowerMw">0</span> <small>mW</small></p>
+          </div>
+
+          <div class="panel stat-card">
+            <p class="eyebrow">每日能量消耗</p>
+            <p class="stat-main"><span id="dailyEnergyMwh">0</span> <small>mWh</small></p>
+          </div>
+
+          <div class="panel stat-card">
+            <p class="eyebrow">活动时长 / 天</p>
+            <p class="stat-main"><span id="activeHoursPerDay">0</span> <small>h</small></p>
+          </div>
+        </section>
+
+        <section class="panel chart-panel">
+          <div class="section-head">
+            <h2>当前项目能耗构成</h2>
+            <p class="helper-inline">活动 / 休眠 / AOR 分项 mWh（每日）</p>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="breakdownChart" aria-label="能耗构成图表"></canvas>
+          </div>
+          <div id="chartFallback" class="chart-fallback" hidden>图表库未加载，仍可使用计算和导出功能。</div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

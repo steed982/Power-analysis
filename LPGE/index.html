@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>摄像头功耗模型计算器 v3.1</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .input-standard {
+            height: 52px; width: 100%; padding: 0 16px; background-color: #f8fafc;
+            border: 1px solid #e2e8f0; border-radius: 12px; font-size: 18px;
+            font-weight: 700; color: #334155; outline: none; transition: all 0.2s;
+        }
+        .input-standard:focus { border-color: #2563eb; background-color: #ffffff; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.05); }
+        .btn-choice {
+            padding: 4px 12px; font-size: 12px; font-weight: 600; border: 1px solid #e2e8f0;
+            border-radius: 6px; color: #64748b; background: white; transition: all 0.2s;
+        }
+        .btn-choice.active { background-color: #2563eb; color: white; border-color: #2563eb; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2); }
+        .mode-btn { padding: 8px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; color: #64748b; transition: all 0.2s; }
+        .mode-btn.active { background: white; color: #2563eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=range] { cursor: pointer; accent-color: #2563eb; }
+    </style>
+</head>
+<body class="bg-[#f1f5f9] min-h-screen py-10 px-4 font-sans text-slate-700">
+
+    <div class="max-w-4xl mx-auto space-y-6">
+        
+        <div class="flex flex-wrap items-center justify-between gap-4 bg-white/50 p-2 rounded-2xl border border-white/20 backdrop-blur-sm">
+            <div class="flex items-center space-x-3 pl-3">
+                <div class="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-200">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                </div>
+                <h1 class="text-xl font-extrabold tracking-tight text-slate-800">功耗模型配置</h1>
+            </div>
+            <div class="bg-slate-200/50 p-1 rounded-xl flex space-x-1">
+                <button onclick="setMode('sleep')" id="tab-sleep" class="mode-btn">休眠唤醒</button>
+                <button onclick="setMode('aor')" id="tab-aor" class="mode-btn">AOR 模式</button>
+                <button onclick="setMode('always')" id="tab-always" class="mode-btn">长电模式</button>
+                <button onclick="setMode('smart')" id="tab-smart" class="mode-btn active">智能模式</button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="md:col-span-2 bg-[#0f172a] rounded-[2rem] p-8 text-white shadow-2xl flex items-center justify-between relative overflow-hidden border border-white/5">
+                <div class="relative z-10">
+                    <p class="text-slate-500 text-xs font-black uppercase tracking-[0.2em] mb-2">预计续航</p>
+                    <div class="flex items-baseline space-x-3">
+                        <span id="resValue" class="text-7xl font-black text-blue-400 tracking-tighter">0</span>
+                        <span id="resUnit" class="text-2xl font-bold text-slate-500 transition-colors duration-300">天</span>
+                    </div>
+                    <p class="mt-4 text-slate-400 font-medium text-sm">理论寿命约为 <span id="resMonths" class="text-white font-bold underline underline-offset-8 decoration-blue-500">0</span> 个月</p>
+                </div>
+                <div class="w-32 h-32 border-[12px] border-slate-800 rounded-full flex items-center justify-center relative">
+                    <div id="lifeRing" class="absolute inset-0 border-[12px] border-blue-500 rounded-full border-t-transparent -rotate-45 transition-all duration-700"></div>
+                    <span class="text-xs font-black text-slate-500 uppercase">Life</span>
+                </div>
+            </div>
+            <div class="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-sm flex flex-col justify-center text-center">
+                <div class="space-y-6">
+                    <div>
+                        <p class="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">平均运行功耗</p>
+                        <p class="text-2xl font-black text-slate-800"><span id="avgPower">0</span> <small class="text-xs text-slate-400 font-bold">mW</small></p>
+                    </div>
+                    <div class="pt-6 border-t border-slate-100">
+                        <p class="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">每日能量消耗</p>
+                        <p class="text-2xl font-black text-slate-800"><span id="dailyEnergy">0</span> <small class="text-xs text-slate-400 font-bold">mWh</small></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-[2.5rem] shadow-xl border border-slate-200 overflow-hidden">
+            <div class="p-10 border-b border-slate-100 bg-slate-50/30">
+                <div class="flex items-center space-x-3 mb-8">
+                    <div class="w-1.5 h-6 bg-blue-600 rounded-full"></div>
+                    <h2 class="font-black text-slate-800 uppercase tracking-widest text-sm">1. 基础硬件配置</h2>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div>
+                        <div class="flex justify-between items-center mb-3 px-1">
+                            <label class="text-[11px] font-black text-slate-400 uppercase tracking-wider">电池容量 (MAH)</label>
+                            <div class="flex space-x-1" id="batteryBtns">
+                                <button onclick="setBattery(5200, this)" class="btn-choice active">5200</button>
+                                <button onclick="setBattery(9000, this)" class="btn-choice">9000</button>
+                                <button onclick="setBattery(18000, this)" class="btn-choice">18000</button>
+                            </div>
+                        </div>
+                        <input type="number" id="batteryCap" value="5200" oninput="calculate()" class="input-standard">
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-3 block px-1">工作电压 (V)</label>
+                        <input type="number" id="voltage" value="3.7" step="0.1" oninput="calculate()" class="input-standard">
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-3 block px-1">放电效率 (%)</label>
+                        <input type="number" id="efficiency" value="85" oninput="calculate()" class="input-standard">
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-10 grid grid-cols-1 md:grid-cols-2 gap-12">
+                <div class="space-y-8">
+                    <div class="flex items-center space-x-3 mb-2">
+                        <div class="w-1.5 h-6 bg-blue-400 rounded-full"></div>
+                        <h2 class="font-black text-slate-800 uppercase tracking-widest text-sm">2. 功耗配置</h2>
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-black text-slate-400 uppercase mb-3 block px-1">Active 工作功耗 (MW)</label>
+                        <input type="number" id="activePower" value="925" oninput="calculate()" class="input-standard">
+                    </div>
+                    <div class="grid grid-cols-2 gap-6">
+                        <div>
+                            <label class="text-[11px] font-black text-slate-400 uppercase mb-3 block px-1">唤醒次数 / 天</label>
+                            <input type="number" id="wakeCount" value="50" oninput="calculate()" class="input-standard">
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-black text-slate-400 uppercase mb-3 block px-1">单次录制 (秒)</label>
+                            <input type="number" id="wakeTime" value="10" oninput="calculate()" class="input-standard">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-8">
+                    <div class="flex items-center space-x-3 mb-2">
+                        <div class="w-1.5 h-6 bg-emerald-500 rounded-full"></div>
+                        <h2 class="font-black text-slate-800 uppercase tracking-widest text-sm">3. 待机配置</h2>
+                    </div>
+                    <div id="sleepPowerSection">
+                        <div class="flex justify-between items-center mb-3 px-1">
+                            <label class="text-[11px] font-black text-emerald-600 uppercase">休眠功耗 (MW)</label>
+                            <div class="flex space-x-1">
+                                <button onclick="setSleepType(3, this)" id="btn-wifi" class="btn-choice">WiFi(3mw)</button>
+                                <button onclick="setSleepType(6, this)" id="btn-4g" class="btn-choice active">4G(6mw)</button>
+                            </div>
+                        </div>
+                        <input type="number" id="sleepPower" value="6" oninput="calculate()" class="input-standard !text-emerald-700">
+                    </div>
+                    <div id="aorPowerSection">
+                        <label class="text-[11px] font-black text-orange-600 uppercase mb-3 block px-1">AOR 待机功耗 (MW)</label>
+                        <input type="number" id="aorPower" value="35" oninput="calculate()" class="input-standard !text-orange-700">
+                    </div>
+                </div>
+            </div>
+
+            <div id="smartThresholdSection" class="mx-10 mb-10 p-8 bg-slate-50 rounded-3xl border border-slate-100 shadow-inner">
+                <div class="flex justify-between items-center mb-6">
+                    <label class="font-black text-slate-800 uppercase tracking-wider text-sm text-purple-700">智能切换阈值: <span id="thresholdVal" class="text-2xl ml-2 font-black">40</span>%</label>
+                    <span class="text-xs text-slate-400 font-bold italic">高于阈值 AOR，低于阈值切换至休眠</span>
+                </div>
+                <input type="range" id="thresholdRange" min="0" max="100" value="40" oninput="updateThreshold(this.value)" class="w-full h-3 bg-slate-200 rounded-full appearance-none">
+            </div>
+        </div>
+    </div>
+
+<script>
+    let currentMode = 'smart';
+    let chart = null;
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.mode-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-' + mode).classList.add('active');
+        document.getElementById('sleepPowerSection').style.display = (mode === 'sleep' || mode === 'smart') ? 'block' : 'none';
+        document.getElementById('aorPowerSection').style.display = (mode === 'aor' || mode === 'smart') ? 'block' : 'none';
+        document.getElementById('smartThresholdSection').style.display = mode === 'smart' ? 'block' : 'none';
+        calculate();
+    }
+
+    function setBattery(val, btn) {
+        document.getElementById('batteryCap').value = val;
+        document.querySelectorAll('#batteryBtns .btn-choice').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        calculate();
+    }
+
+    function setSleepType(val, btn) {
+        document.getElementById('sleepPower').value = val;
+        document.querySelectorAll('#sleepPowerSection .btn-choice').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        calculate();
+    }
+
+    function updateThreshold(val) {
+        document.getElementById('thresholdVal').innerText = val;
+        calculate();
+    }
+
+    function calculate() {
+        const cap = parseFloat(document.getElementById('batteryCap').value) || 0;
+        const volt = parseFloat(document.getElementById('voltage').value) || 3.7;
+        const eff = (parseFloat(document.getElementById('efficiency').value) || 85) / 100;
+        const activeW = parseFloat(document.getElementById('activePower').value) || 0;
+        
+        const totalEnergyWh = (cap * volt * eff) / 1000;
+        const count = parseFloat(document.getElementById('wakeCount').value) || 0;
+        const timeS = parseFloat(document.getElementById('wakeTime').value) || 0;
+        const activeHrs = (count * timeS) / 3600;
+        const idleHrs = 24 - activeHrs;
+
+        let dailyActiveMWh = activeW * activeHrs;
+        let finalDailyMWh = 0;
+
+        if (currentMode === 'always') {
+            finalDailyMWh = activeW * 24;
+        } else if (currentMode === 'sleep') {
+            finalDailyMWh = dailyActiveMWh + (parseFloat(document.getElementById('sleepPower').value) || 0) * idleHrs;
+        } else if (currentMode === 'aor') {
+            finalDailyMWh = dailyActiveMWh + (parseFloat(document.getElementById('aorPower').value) || 0) * idleHrs;
+        } else {
+            const threshold = parseFloat(document.getElementById('thresholdRange').value) / 100;
+            const aorI = (parseFloat(document.getElementById('aorPower').value) || 0) * idleHrs;
+            const slpI = (parseFloat(document.getElementById('sleepPower').value) || 0) * idleHrs;
+            finalDailyMWh = (dailyActiveMWh + aorI) * (1 - threshold) + (dailyActiveMWh + slpI) * threshold;
+        }
+
+        const days = finalDailyMWh > 0 ? (totalEnergyWh * 1000) / finalDailyMWh : 0;
+        
+        // 核心更新：天与小时的逻辑判断
+        const resValueEl = document.getElementById('resValue');
+        const resUnitEl = document.getElementById('resUnit');
+        
+        if (days < 1 && days > 0) {
+            resValueEl.innerText = (days * 24).toFixed(1);
+            resUnitEl.innerText = "小时";
+            resUnitEl.classList.replace('text-slate-500', 'text-orange-400'); // 小于1天显示黄色警告色
+        } else {
+            resValueEl.innerText = days.toFixed(1);
+            resUnitEl.innerText = "天";
+            resUnitEl.classList.replace('text-orange-400', 'text-slate-500');
+        }
+
+        document.getElementById('resMonths').innerText = (days / 30).toFixed(1);
+        document.getElementById('avgPower').innerText = (finalDailyMWh / 24).toFixed(2);
+        document.getElementById('dailyEnergy').innerText = Math.round(finalDailyMWh);
+    }
+
+    window.onload = () => setMode('smart');
+</script>
+</body>
+</html>
