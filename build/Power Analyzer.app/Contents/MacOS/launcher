@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+WEB_ENTRY="$APP_ROOT/Resources/web/index.html"
+exec /usr/bin/open "$WEB_ENTRY"
